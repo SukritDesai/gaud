@@ -1,0 +1,98 @@
+#!/bin/zsh
+
+set -e
+
+# -------------------- HELP / USAGE --------------------
+usage() {
+  cat <<EOF
+Usage: gaud [OPTIONS] <YouTube URL>
+
+Downloads audio from a YouTube video, converts it to .m4a, and optionally cleans the filename and sets metadata.
+
+Options:
+  --keep           Keep the intermediate .webm file (default is to delete it)
+  --clean-name     Rename output file using artist and title format (e.g., kanye_west_paranoid.m4a)
+  -h, --help       Show this help message and exit
+
+Examples:
+  gaud https://www.youtube.com/watch?v=dQw4w9WgXcQ
+  gaud --clean-name https://www.youtube.com/watch?v=dQw4w9WgXcQ
+  gaud --keep --clean-name https://www.youtube.com/watch?v=dQw4w9WgXcQ
+EOF
+  exit 0
+}
+
+# -------------------- FLAGS --------------------
+keep_webm=false
+clean_name=false
+url=""
+
+# Parse arguments
+for arg in "$@"; do
+  case "$arg" in
+    --keep) keep_webm=true ;;
+    --clean-name) clean_name=true ;;
+    -h|--help) usage ;;
+    http*) url="$arg" ;;
+    *)
+      echo "❌ Unknown argument: $arg"
+      usage ;;
+  esac
+done
+
+if [ -z "$url" ]; then
+  echo "❌ Missing YouTube URL."
+  usage
+fi
+
+# -------------------- DOWNLOAD --------------------
+echo "📥 Downloading audio from YouTube..."
+yt_dlp_output=$(yt-dlp -f bestaudio --progress -o "%(title)s.%(ext)s" "$url")
+webm_file=$(echo "$yt_dlp_output" | grep -oE "Destination: .*\.webm" | sed "s/Destination: //")
+
+if [ -z "$webm_file" ]; then
+  echo "❌ Could not find downloaded .webm file."
+  exit 1
+fi
+
+original_name=$(basename "$webm_file" .webm)
+artist=""
+title=""
+
+# -------------------- CLEAN FILE NAME --------------------
+if [ "$clean_name" = true ]; then
+  if [[ "$original_name" == *" - "* ]]; then
+    artist=$(echo "$original_name" | cut -d'-' -f1 | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
+    title=$(echo "$original_name" | cut -d'-' -f2- | sed -E 's/\(.*\)//' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
+  else
+    # fallback if no dash
+    title="$original_name"
+    artist="unknown"
+  fi
+
+  # Format for filename
+  clean_artist=$(echo "$artist" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g' | sed -E 's/_+/_/g' | sed -E 's/^_|_$//g')
+  clean_title=$(echo "$title"  | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g' | sed -E 's/_+/_/g' | sed -E 's/^_|_$//g')
+  m4a_file="${clean_artist}_${clean_title}.m4a"
+else
+  m4a_file="${original_name}.m4a"
+fi
+
+# -------------------- CONVERT TO M4A --------------------
+echo "🎵 Converting to $m4a_file..."
+
+# Use ffmpeg and embed metadata if available
+if [ -n "$artist" ] && [ -n "$title" ]; then
+  ffmpeg -i "$webm_file" -vn -c:a aac -metadata artist="$artist" -metadata title="$title" "$m4a_file"
+else
+  ffmpeg -i "$webm_file" -vn -c:a aac "$m4a_file"
+fi
+
+# -------------------- CLEANUP --------------------
+if [ "$keep_webm" = false ]; then
+  echo "🧹 Deleting intermediate .webm file..."
+  rm "$webm_file"
+fi
+
+echo "✅ Saved as: $m4a_file"
+
