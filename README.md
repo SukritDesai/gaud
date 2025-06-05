@@ -8,7 +8,6 @@ YouTube videos and saving it as an `.m4a` file.
 - Downloads audio using `yt-dlp`
 - Converts to `.m4a` with `ffmpeg`
 - Optionally cleans the output file name
-- Displays the program version with `--version`
 
 ## Installation
 
