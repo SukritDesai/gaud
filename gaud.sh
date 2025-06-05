@@ -1,6 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
+
+VERSION="0.1.0"
 
 # -------------------- HELP / USAGE --------------------
 usage() {
@@ -12,6 +14,7 @@ Downloads audio from a YouTube video, converts it to .m4a, and optionally cleans
 Options:
   --keep           Keep the intermediate .webm file (default is to delete it)
   --clean-name     Rename output file using artist and title format (e.g., kanye_west_paranoid.m4a)
+  --version        Show the gaud version and exit
   -h, --help       Show this help message and exit
 
 Examples:
@@ -32,6 +35,9 @@ for arg in "$@"; do
   case "$arg" in
     --keep) keep_webm=true ;;
     --clean-name) clean_name=true ;;
+    --version)
+      echo "gaud $VERSION"
+      exit 0 ;;
     -h|--help) usage ;;
     http*) url="$arg" ;;
     *)
